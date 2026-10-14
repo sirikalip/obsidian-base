@@ -1,0 +1,39 @@
+name: Check Contributing Rules
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Скачивание репозитория
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Защита валидатора
+        run: git checkout origin/main -- .github/scripts/validate_contributing.py
+
+      - name: Настройка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Установка зависимостей
+        run: pip install pyyaml
+
+      - name: Получение списка измененных файлов
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git config --global core.quotePath false
+          git diff --name-only --diff-filter=d "$BASE_SHA...$HEAD_SHA" > changed_files.txt
+
+      - name: Запуск валидатора
+        run: python .github/scripts/validate_contributing.py

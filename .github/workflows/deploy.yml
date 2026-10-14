@@ -1,0 +1,67 @@
+name: Deploy Quartz site to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout content repository
+        uses: actions/checkout@v4
+        with:
+          path: "content-repo"
+
+      - name: Checkout Quartz repository
+        uses: actions/checkout@v4
+        with:
+          repository: jackyzha0/quartz
+          ref: v4
+          path: "quartz-ssg"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: "quartz-ssg/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: ./quartz-ssg
+        run: npm ci
+
+      - name: Assemble Vault and Configs
+        run: |
+          chmod +x content-repo/.github/quartz/build-prepare.sh
+          bash content-repo/.github/quartz/build-prepare.sh "$PWD/content-repo" "$PWD/quartz-ssg"
+
+      - name: Build Quartz
+        working-directory: ./quartz-ssg
+        run: npx quartz build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: quartz-ssg/public
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
